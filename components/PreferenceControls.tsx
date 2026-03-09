@@ -1,10 +1,21 @@
 import { Settings, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { useScheduling } from '../src/SchedulingContext';
 
 export function PreferenceControls() {
-  const [importance, setImportance] = useState<'low' | 'medium' | 'high'>('medium');
-  const [flexibility, setFlexibility] = useState<'low' | 'medium' | 'high'>('medium');
-  const [idealTime, setIdealTime] = useState<'morning' | 'afternoon' | 'evening'>('afternoon');
+  const { preferences, setPreferences } = useScheduling();
+  const [local, setLocal] = useState(preferences);
+  const [dirty, setDirty] = useState(false);
+
+  const updateLocal = (updates: Partial<typeof local>) => {
+    setLocal(prev => ({ ...prev, ...updates }));
+    setDirty(true);
+  };
+
+  const apply = () => {
+    setPreferences(local);
+    setDirty(false);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
@@ -26,9 +37,9 @@ export function PreferenceControls() {
             {(['low', 'medium', 'high'] as const).map((level) => (
               <button
                 key={level}
-                onClick={() => setImportance(level)}
+                onClick={() => updateLocal({ importance: level })}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  importance === level
+                  local.importance === level
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
@@ -48,9 +59,9 @@ export function PreferenceControls() {
             {(['low', 'medium', 'high'] as const).map((level) => (
               <button
                 key={level}
-                onClick={() => setFlexibility(level)}
+                onClick={() => updateLocal({ flexibility: level })}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  flexibility === level
+                  local.flexibility === level
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
@@ -70,9 +81,9 @@ export function PreferenceControls() {
             {(['morning', 'afternoon', 'evening'] as const).map((time) => (
               <button
                 key={time}
-                onClick={() => setIdealTime(time)}
+                onClick={() => updateLocal({ idealTime: time })}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  idealTime === time
+                  local.idealTime === time
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
@@ -84,9 +95,17 @@ export function PreferenceControls() {
         </div>
 
         {/* Recalculate Button */}
-        <button className="w-full py-3 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-md">
+        <button
+          onClick={apply}
+          disabled={!dirty}
+          className={`w-full py-3 font-medium rounded-lg transition-all flex items-center justify-center gap-2 shadow-md ${
+            dirty
+              ? 'bg-slate-900 text-white hover:bg-slate-800'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+          }`}
+        >
           <RefreshCw className="w-4 h-4" />
-          Recalculate with Preferences
+          {dirty ? 'Recalculate with Preferences' : 'Preferences Applied'}
         </button>
       </div>
     </div>
