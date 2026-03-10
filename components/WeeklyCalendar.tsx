@@ -52,6 +52,7 @@ export function WeeklyCalendar() {
   };
 
   const hasFatigueRisk = (dayIndex: number, hourIndex: number): boolean => {
+    let fatiguedCount = 0;
     for (let p = 0; p < participants.length; p++) {
       if (!availabilities[p]?.[dayIndex]?.[hourIndex]) continue;
       let consecutive = 1;
@@ -63,9 +64,10 @@ export function WeeklyCalendar() {
         if (availabilities[p][dayIndex][h]) consecutive++;
         else break;
       }
-      if (consecutive >= 5) return true;
+      if (consecutive >= 8) fatiguedCount++;
     }
-    return false;
+    // Only flag if at least 2 participants are fatigued, or if it's a solo meeting and 1 is
+    return fatiguedCount >= Math.max(2, Math.ceil(participants.length * 0.4));
   };
 
   const getOpacityClass = (count: number): string => {
