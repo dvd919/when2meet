@@ -218,14 +218,17 @@ export function WeeklyCalendar() {
                   const userAvailable = availabilities[0]?.[dayIndex]?.[hourIndex];
                   const confirmed = isConfirmed(dayIndex, hourIndex);
 
+                  const availablePeople = getAvailableParticipants(dayIndex, hourIndex);
+                  const othersOnly = count > 0 && !userAvailable;
+                  const youOnly = count > 0 && userAvailable && count === 1;
+
                   return (
                     <div
                       key={key}
-                      className={`bg-white p-3 min-h-[60px] relative cursor-pointer transition-all group ${
+                      className={`p-2 min-h-[60px] relative cursor-pointer transition-all group ${
                         isHovered ? 'ring-2 ring-blue-500 ring-inset z-10' : ''
-                      } ${userAvailable ? 'ring-1 ring-blue-300 ring-inset' : ''} ${
-                        confirmed ? 'ring-2 ring-green-500 ring-inset z-10' : ''
-                      }`}
+                      } ${confirmed ? 'ring-2 ring-green-500 ring-inset z-10' : ''
+                      } ${userAvailable ? 'bg-blue-50' : 'bg-white'}`}
                       onMouseEnter={() => {
                         setHoveredCell(key);
                         if (dragMode !== null) handleDragOver(dayIndex, hourIndex);
@@ -238,10 +241,15 @@ export function WeeklyCalendar() {
                         toggleAvailability(dayIndex, hourIndex);
                       }}
                     >
-                      {/* Availability Gradient */}
+                      {/* Background: colored by how many are available */}
                       {count > 0 && (
                         <div
-                          className={`absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-500 ${getOpacityClass(count)}`}
+                          className={`absolute inset-0 ${getOpacityClass(count)}`}
+                          style={{
+                            background: userAvailable
+                              ? 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)'
+                              : 'linear-gradient(135deg, #94A3B8 0%, #64748B 100%)',
+                          }}
                         />
                       )}
 
@@ -249,16 +257,18 @@ export function WeeklyCalendar() {
                         <div className="absolute inset-0 bg-green-500 opacity-30" />
                       )}
 
-                      <div className="relative z-10 flex flex-col items-center justify-center h-full">
+                      <div className="relative z-10 flex flex-col items-center justify-center h-full gap-1">
+                        {/* Confirmed check */}
                         {confirmed && (
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center bg-green-600 text-white shadow-lg mb-1">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center bg-green-600 text-white shadow-lg">
                             <Check className="w-4 h-4" />
                           </div>
                         )}
 
+                        {/* Rank Badge */}
                         {rank && !confirmed && (
                           <div className={`
-                            w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg mb-1
+                            w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg
                             ${rank === 1 ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white' : ''}
                             ${rank === 2 ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white' : ''}
                             ${rank === 3 ? 'bg-gradient-to-br from-slate-600 to-slate-700 text-white' : ''}
@@ -267,12 +277,21 @@ export function WeeklyCalendar() {
                           </div>
                         )}
 
+                        {/* Participant dots */}
                         {count > 0 && !rank && !confirmed && (
-                          <div className={`text-xs font-semibold drop-shadow-md ${count >= 3 ? 'text-white' : 'text-slate-700'}`}>
-                            {count}/{participants.length}
+                          <div className="flex items-center gap-0.5 flex-wrap justify-center">
+                            {availablePeople.map(p => (
+                              <div
+                                key={p.name}
+                                className="w-4 h-4 rounded-full border border-white/80 shadow-sm flex-shrink-0"
+                                style={{ backgroundColor: p.color }}
+                                title={p.name}
+                              />
+                            ))}
                           </div>
                         )}
 
+                        {/* Fatigue Warning */}
                         {hasFatigue && (
                           <div className="absolute top-1 right-1">
                             <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-md">
@@ -282,15 +301,24 @@ export function WeeklyCalendar() {
                         )}
                       </div>
 
+                      {/* Hover Tooltip */}
                       {isHovered && (
-                        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap z-20 shadow-xl pointer-events-none">
+                        <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap z-20 shadow-xl pointer-events-none">
                           <div className="font-semibold">{ALL_DAYS[dayIndex]} {formatHour(hourIndex)}</div>
-                          <div className="text-slate-300 mt-0.5">
+                          <div className="text-slate-300 mt-1">
                             {count} of {participants.length} available
                           </div>
                           {count > 0 && (
-                            <div className="text-slate-400 mt-0.5">
-                              {getAvailableParticipants(dayIndex, hourIndex).map(p => p.name).join(', ')}
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              {availablePeople.map(p => (
+                                <div key={p.name} className="flex items-center gap-1">
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: p.color }}
+                                  />
+                                  <span className="text-slate-300">{p.name}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
                           <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
@@ -309,26 +337,34 @@ export function WeeklyCalendar() {
       <div className="border-t border-slate-200 px-6 py-4 bg-slate-50">
         <div className="flex items-center gap-6 text-sm flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
-            <span className="text-slate-600">High availability</span>
+            <div className="w-4 h-4 bg-blue-50 rounded border border-blue-200" />
+            <span className="text-slate-600">You're available</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-500 opacity-40 rounded" />
-            <span className="text-slate-600">Low availability</span>
+            <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
+            <span className="text-slate-600">You + others</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gradient-to-br from-slate-400 to-slate-500 rounded" />
+            <span className="text-slate-600">Others only</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-1">
+              {participants.slice(0, 3).map(p => (
+                <div key={p.name} className="w-3.5 h-3.5 rounded-full border border-white" style={{ backgroundColor: p.color }} />
+              ))}
+            </div>
+            <span className="text-slate-600">Who's available</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
-            <span className="text-slate-600">AI recommendation</span>
+            <span className="text-slate-600">AI pick</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
               <AlertTriangle className="w-2.5 h-2.5 text-white" />
             </div>
             <span className="text-slate-600">Fatigue risk</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded border-2 border-blue-300" />
-            <span className="text-slate-600">Your availability</span>
           </div>
         </div>
       </div>
