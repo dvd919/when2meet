@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import type { Participant, Preferences, AvailabilityGrid, Recommendation, SlotMetrics, MeetingConfig, AppPhase } from './types';
 import * as fs from './firestore';
+import { importGoogleCalendar } from './googleCalendar';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const HOURS = 14;
@@ -55,6 +56,7 @@ interface SchedulingContextType {
   confirmedSlot: { dayIndex: number; hourIndex: number } | null;
   setConfirmedSlot: (slot: { dayIndex: number; hourIndex: number } | null) => void;
   loading: boolean;
+  importFromGoogle: (weekStart: Date) => Promise<void>;
 }
 
 const SchedulingContext = createContext<SchedulingContextType | null>(null);
@@ -211,6 +213,23 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     });
   }, [dragMode, flushAvailability]);
 
+  const importFromGoogle = useCallback(async (weekStart: Date) => {
+    if (!meetingConfig) return;
+    setLoading(true);
+    try {
+      const grid = await importGoogleCalendar(
+        weekStart,
+        meetingConfig.days,
+        meetingConfig.startHour,
+        meetingConfig.endHour,
+      );
+      setLocalAvailability(grid);
+      flushAvailability(grid);
+    } finally {
+      setLoading(false);
+    }
+  }, [meetingConfig, flushAvailability]);
+
   const setConfirmedSlot = useCallback((slot: { dayIndex: number; hourIndex: number } | null) => {
     setConfirmedSlotLocal(slot);
     if (meetingConfig) {
@@ -362,6 +381,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     confirmedSlot,
     setConfirmedSlot,
     loading,
+    importFromGoogle,
   };
 
   return (

@@ -1,6 +1,7 @@
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check, Calendar as CalendarIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useScheduling } from '../src/SchedulingContext';
+import { getCurrentWeekMonday, getNextWeekMonday, formatWeekLabel } from '../src/googleCalendar';
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -17,6 +18,8 @@ export function WeeklyCalendar() {
     availabilities,
     confirmedSlot,
     meetingConfig,
+    importFromGoogle,
+    loading,
   } = useScheduling();
 
   const days = meetingConfig ? meetingConfig.days : [0, 1, 2, 3, 4, 5, 6];
@@ -25,6 +28,22 @@ export function WeeklyCalendar() {
   const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => i + startHour);
 
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importWeek, setImportWeek] = useState<'this' | 'next'>('this');
+  const [importError, setImportError] = useState('');
+
+  const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  const handleGoogleImport = async () => {
+    setImportError('');
+    try {
+      const weekStart = importWeek === 'this' ? getCurrentWeekMonday() : getNextWeekMonday();
+      await importFromGoogle(weekStart);
+      setShowImport(false);
+    } catch (err: any) {
+      setImportError(err.message || 'Failed to import calendar');
+    }
+  };
 
   const getRankForCell = (dayIndex: number, hourIndex: number): number | null => {
     const top3 = recommendations.slice(0, 3);
@@ -75,10 +94,96 @@ export function WeeklyCalendar() {
       onMouseUp={() => setDragMode(null)}
       onMouseLeave={() => setDragMode(null)}
     >
-      <div className="border-b border-slate-200 px-6 py-4 bg-slate-50">
-        <h2 className="font-semibold text-slate-900">Weekly Availability Heatmap</h2>
-        <p className="text-sm text-slate-600 mt-1">Click or drag on slots to mark your availability</p>
+      <div className="border-b border-slate-200 px-6 py-4 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-900">Weekly Availability Heatmap</h2>
+          <p className="text-sm text-slate-600 mt-1">Click or drag on slots to mark your availability</p>
+        </div>
+        {hasGoogleClientId && (
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
+          >
+            <CalendarIcon className="w-4 h-4" />
+            Import Google Calendar
+          </button>
+        )}
       </div>
+
+      {/* Google Calendar Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImport(false)}>
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="font-semibold text-slate-900">Import from Google Calendar</h3>
+              <p className="text-sm text-slate-600 mt-1">
+                Your busy times will be marked as unavailable
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Which week?</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setImportWeek('this')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                      importWeek === 'this'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    This week
+                  </button>
+                  <button
+                    onClick={() => setImportWeek('next')}
+                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                      importWeek === 'next'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Next week
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  {importWeek === 'this'
+                    ? formatWeekLabel(getCurrentWeekMonday())
+                    : formatWeekLabel(getNextWeekMonday())}
+                </p>
+              </div>
+
+              {importError && (
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {importError}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowImport(false)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGoogleImport}
+                  disabled={loading}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <CalendarIcon className="w-4 h-4" />
+                      Import
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-6 overflow-x-auto">
         <div className="inline-block min-w-full">
