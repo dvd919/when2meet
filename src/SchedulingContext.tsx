@@ -165,8 +165,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       inviteCode: meeting.inviteCode,
     };
 
-    // Pick a color based on how many participants exist
-    const existing = firestoreParticipants.length;
+    // Pick a color based on how many participants already in Firestore
+    const existing = await fs.getParticipantCount(inviteCode.toUpperCase());
     const color = PARTICIPANT_COLORS[existing % PARTICIPANT_COLORS.length];
 
     await fs.addParticipant(inviteCode.toUpperCase(), userName, color, false);
@@ -178,12 +178,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     setLoading(false);
     setPhase('scheduling');
     return true;
-  }, [firestoreParticipants.length, setPhase]);
+  }, [setPhase]);
 
   const addParticipant = useCallback(async (name: string) => {
     if (!meetingConfig) return;
     if (firestoreParticipants.some(p => p.name.toLowerCase() === name.toLowerCase())) return;
-    const color = PARTICIPANT_COLORS[firestoreParticipants.length % PARTICIPANT_COLORS.length];
+    const existing = await fs.getParticipantCount(meetingConfig.inviteCode);
+    const color = PARTICIPANT_COLORS[existing % PARTICIPANT_COLORS.length];
     await fs.addParticipant(meetingConfig.inviteCode, name, color, false);
   }, [meetingConfig, firestoreParticipants]);
 

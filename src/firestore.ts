@@ -6,6 +6,7 @@ import {
   onSnapshot,
   collection,
   deleteDoc,
+  getDocs,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -87,6 +88,12 @@ export async function setConfirmedSlot(
 }
 
 // --- Participants ---
+
+export async function getParticipantCount(inviteCode: string): Promise<number> {
+  const colRef = collection(db, 'meetings', inviteCode, 'participants');
+  const snap = await getDocs(colRef);
+  return snap.size;
+}
 
 export async function addParticipant(
   inviteCode: string,
