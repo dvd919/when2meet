@@ -1,10 +1,25 @@
+import { useState, useEffect } from 'react';
 import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar } from 'lucide-react';
 import { useScheduling } from '../src/SchedulingContext';
+import { getAIInsight } from '../src/openai';
 
 export function RecommendationPanel() {
-  const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot } = useScheduling();
+  const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot, participants, getAvailableParticipants } = useScheduling();
+  const [aiInsight, setAiInsight] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
 
   const topRec = recommendations[selectedRecommendation] ?? recommendations[0];
+
+  useEffect(() => {
+    if (!topRec) return;
+    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
+    setAiInsight('');
+    setAiLoading(true);
+    getAIInsight(topRec, participants.length, available)
+      .then(setAiInsight)
+      .catch(() => setAiInsight(''))
+      .finally(() => setAiLoading(false));
+  }, [topRec?.dayIndex, topRec?.timeIndex, topRec?.score]);
 
   if (recommendations.length === 0) {
     return (
@@ -150,7 +165,7 @@ export function RecommendationPanel() {
             <div>
               <div className="font-medium text-slate-900 mb-1 text-sm">AI Insight</div>
               <p className="text-sm text-slate-700 leading-relaxed">
-                {getInsight()}
+                {aiLoading ? 'Analyzing...' : aiInsight || getInsight()}
               </p>
             </div>
           </div>
