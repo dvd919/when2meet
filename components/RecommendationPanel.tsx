@@ -1,10 +1,73 @@
-import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar, UserPlus, ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { useScheduling } from '../src/SchedulingContext';
+import { getAIInsight, getAIReasoning, chatWithAI, type ChatMessage } from '../src/openai';
 
 export function RecommendationPanel() {
-  const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot } = useScheduling();
+  const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot, participants, getAvailableParticipants, computeWhatIf } = useScheduling();
+  const [aiInsight, setAiInsight] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [reasoning, setReasoning] = useState('');
+  const [reasoningLoading, setReasoningLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const topRec = recommendations[selectedRecommendation] ?? recommendations[0];
+
+  useEffect(() => {
+    if (!topRec) return;
+    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
+    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
+    setAiInsight('');
+    setAiLoading(true);
+    setExpanded(false);
+    setReasoning('');
+    setChatHistory([]);
+    getAIInsight(topRec, participants.length, available, unavailable)
+      .then(setAiInsight)
+      .catch(() => setAiInsight(''))
+      .finally(() => setAiLoading(false));
+  }, [topRec?.dayIndex, topRec?.timeIndex, topRec?.score]);
+
+  const handleExpand = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !reasoning && !reasoningLoading && topRec) {
+      const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
+      const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
+      setReasoningLoading(true);
+      getAIReasoning(topRec, participants.length, available, unavailable)
+        .then(r => {
+          setReasoning(r);
+          setChatHistory([{ role: 'assistant', content: r }]);
+        })
+        .catch(() => setReasoning(''))
+        .finally(() => setReasoningLoading(false));
+    }
+  };
+
+  const handleSend = async () => {
+    if (!userInput.trim() || chatLoading || !topRec) return;
+    const message = userInput.trim();
+    setUserInput('');
+    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
+    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
+    const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: message }];
+    setChatHistory(newHistory);
+    setChatLoading(true);
+    try {
+      const reply = await chatWithAI(topRec, participants.length, available, unavailable, chatHistory, message);
+      setChatHistory([...newHistory, { role: 'assistant', content: reply }]);
+    } catch {
+      setChatHistory([...newHistory, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
+    } finally {
+      setChatLoading(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }
+  };
 
   if (recommendations.length === 0) {
     return (
@@ -96,6 +159,18 @@ export function RecommendationPanel() {
     return parts.join('. ') + '.';
   };
 
+  const availableNow = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
+  const unavailableParticipants = participants
+    .map((p, i) => ({ participant: p, index: i }))
+    .filter(({ participant }) => !availableNow.find(a => a.name === participant.name))
+    .map(({ participant, index }) => ({
+      participant,
+      whatIfScore: computeWhatIf(topRec.dayIndex, topRec.timeIndex, index),
+      delta: computeWhatIf(topRec.dayIndex, topRec.timeIndex, index) - topRec.score,
+    }))
+    .filter(({ delta }) => delta > 0)
+    .sort((a, b) => b.delta - a.delta);
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 sticky top-6">
       {/* Top Recommendation */}
@@ -108,33 +183,29 @@ export function RecommendationPanel() {
         </div>
         <div className="text-white">
           <div className="text-3xl font-semibold mb-1">{topRec.day} {topRec.time}</div>
-          <div className="text-blue-100 text-sm">Overall score: {topRec.score}%</div>
+          <div className="text-blue-100 text-sm">Overall score: {topRec.score}/100</div>
         </div>
       </div>
 
       {/* Metrics Grid */}
-      <div className="p-6 space-y-4">
+      <div className="px-4 pb-4 grid grid-cols-2 gap-3">
         {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
-            <div key={metric.label} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded-lg ${metric.bgColor}`}>
-                    <Icon className={`w-4 h-4 ${metric.color}`} />
-                  </div>
-                  <span className="text-sm font-medium text-slate-700">{metric.label}</span>
-                </div>
-                <span className={`text-lg font-semibold ${getScoreColor(metric.value, metric.inverse)}`}>
+            <div key={metric.label} className={`rounded-lg p-3 ${metric.bgColor}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <Icon className={`w-3.5 h-3.5 ${metric.color}`} />
+                <span className={`text-sm font-bold ${getScoreColor(metric.value, metric.inverse)}`}>
                   {metric.value}%
                 </span>
               </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-white/60 rounded-full overflow-hidden mb-1">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${getBarColor(metric.value, metric.inverse)}`}
                   style={{ width: `${metric.value}%` }}
                 />
               </div>
+              <div className="text-xs text-slate-600 font-medium">{metric.label}</div>
             </div>
           );
         })}
@@ -142,20 +213,117 @@ export function RecommendationPanel() {
 
       {/* Explanation */}
       <div className="px-6 pb-6">
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100">
-          <div className="flex items-start gap-3">
-            <div className="p-1.5 bg-white rounded-lg shadow-sm">
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-100 overflow-hidden">
+          {/* Header row */}
+          <div className="flex items-start gap-3 p-4">
+            <div className="p-1.5 bg-white rounded-lg shadow-sm flex-shrink-0">
               <Sparkles className="w-4 h-4 text-blue-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="font-medium text-slate-900 mb-1 text-sm">AI Insight</div>
               <p className="text-sm text-slate-700 leading-relaxed">
-                {getInsight()}
+                {aiLoading ? 'Analyzing...' : aiInsight || getInsight()}
               </p>
+            </div>
+            <button
+              onClick={handleExpand}
+              className="flex-shrink-0 p-1 rounded-md hover:bg-blue-100 transition-colors"
+              title={expanded ? 'Hide reasoning' : 'Show reasoning'}
+            >
+              {expanded ? <ChevronUp className="w-4 h-4 text-blue-500" /> : <ChevronDown className="w-4 h-4 text-blue-500" />}
+            </button>
+          </div>
+
+          {/* Expanded: reasoning + chat */}
+          {expanded && (
+            <div className="border-t border-blue-100">
+              {/* Reasoning */}
+              <div className="p-4 bg-white/60">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Detailed Reasoning</div>
+                {reasoningLoading ? (
+                  <p className="text-sm text-slate-400 italic">Thinking...</p>
+                ) : (
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{reasoning}</p>
+                )}
+              </div>
+
+              {/* Chat history (beyond initial reasoning) */}
+              {chatHistory.length > 1 && (
+                <div className="px-4 pb-2 space-y-2 max-h-48 overflow-y-auto">
+                  {chatHistory.slice(1).map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white border border-slate-200 text-slate-700'
+                      }`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-400 italic">Thinking...</div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              )}
+
+              {/* Input */}
+              <div className="p-3 bg-white/60 border-t border-blue-100 flex gap-2">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={e => setUserInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSend()}
+                  placeholder="Ask a follow-up question..."
+                  className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!userInput.trim() || chatLoading}
+                  className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* What-if Analysis */}
+      {unavailableParticipants.length > 0 && (
+        <div className="px-6 pb-6">
+          <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 bg-white rounded-lg shadow-sm">
+                <UserPlus className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="font-medium text-slate-900 text-sm">What-if Analysis</div>
+            </div>
+            <div className="space-y-2">
+              {unavailableParticipants.map(({ participant, whatIfScore, delta }) => (
+                <div key={participant.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: participant.color }} />
+                    <span className="text-sm text-slate-700">
+                      If <span className="font-medium">{participant.name}</span> joined
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <span className="text-slate-400">score {topRec.score}</span>
+                    <span className="text-slate-300">→</span>
+                    <span className="text-green-600">{whatIfScore}</span>
+                    <span className="text-xs text-green-600">(+{delta})</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Action Button */}
       <div className="px-6 pb-6">
@@ -197,7 +365,7 @@ export function RecommendationPanel() {
                 >
                   <div>
                     <div className="text-sm font-medium text-slate-900">{rec.day} {rec.time}</div>
-                    <div className="text-xs text-slate-500">Score: {rec.score}%</div>
+                    <div className="text-xs text-slate-500">Score: {rec.score}/100</div>
                   </div>
                   <div className={`w-6 h-6 ${rankColors[i]} rounded-full flex items-center justify-center text-white text-xs font-bold`}>
                     {i + 1}

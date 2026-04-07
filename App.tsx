@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { WeeklyCalendar } from './components/WeeklyCalendar';
 import { RecommendationPanel } from './components/RecommendationPanel';
 import { TradeoffBreakdown } from './components/TradeoffBreakdown';
@@ -7,6 +8,30 @@ import { CreateMeeting } from './components/CreateMeeting';
 import { InvitePage } from './components/InvitePage';
 import { JoinMeeting } from './components/JoinMeeting';
 import { SchedulingProvider, useScheduling } from './src/SchedulingContext';
+
+function BottomPanel() {
+  const [tab, setTab] = useState<'tradeoff' | 'preferences'>('tradeoff');
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+      <div className="flex border-b border-slate-200">
+        {(['tradeoff', 'preferences'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              tab === t
+                ? 'text-blue-600 border-b-2 border-blue-600 -mb-px'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t === 'tradeoff' ? 'Tradeoff Breakdown' : 'Preferences'}
+          </button>
+        ))}
+      </div>
+      {tab === 'tradeoff' ? <TradeoffBreakdown /> : <PreferenceControls />}
+    </div>
+  );
+}
 
 function AppContent() {
   const { phase } = useScheduling();
@@ -19,17 +44,12 @@ function AppContent() {
     <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <main className="max-w-[1600px] mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
-          <div className="space-y-6">
+      <main className="max-w-[1600px] mx-auto px-4 py-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4">
+          <div className="space-y-4">
             <WeeklyCalendar />
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <TradeoffBreakdown />
-              <PreferenceControls />
-            </div>
+            <BottomPanel />
           </div>
-
           <div>
             <RecommendationPanel />
           </div>

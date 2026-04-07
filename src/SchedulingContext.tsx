@@ -45,7 +45,7 @@ interface SchedulingContextType {
   toggleAvailability: (dayIndex: number, hourIndex: number) => void;
   setDragMode: (mode: 'add' | 'remove' | null) => void;
   dragMode: 'add' | 'remove' | null;
-  handleDragOver: (dayIndex: number, hourIndex: number) => void;
+  handleDragOver: (dayIndex: number, hourIndex: number, modeOverride?: 'add' | 'remove') => void;
   preferences: Preferences;
   recommendations: Recommendation[];
   selectedRecommendation: number;
@@ -53,6 +53,7 @@ interface SchedulingContextType {
   setSelectedRecommendation: (index: number) => void;
   getAvailabilityCount: (dayIndex: number, hourIndex: number) => number;
   getAvailableParticipants: (dayIndex: number, hourIndex: number) => Participant[];
+  computeWhatIf: (dayIndex: number, hourIndex: number, addParticipantIndex: number) => number;
   confirmedSlot: { dayIndex: number; hourIndex: number } | null;
   setConfirmedSlot: (slot: { dayIndex: number; hourIndex: number } | null) => void;
   loading: boolean;
@@ -204,11 +205,12 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     });
   }, [flushAvailability]);
 
-  const handleDragOver = useCallback((dayIndex: number, hourIndex: number) => {
-    if (dragMode === null) return;
+  const handleDragOver = useCallback((dayIndex: number, hourIndex: number, modeOverride?: 'add' | 'remove') => {
+    const mode = modeOverride ?? dragMode;
+    if (mode === null) return;
     setLocalAvailability(prev => {
       const next = prev.map(row => [...row]);
-      next[dayIndex][hourIndex] = dragMode === 'add';
+      next[dayIndex][hourIndex] = mode === 'add';
       flushAvailability(next);
       return next;
     });
@@ -313,6 +315,65 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     return { groupSatisfaction, fatigueScore, fairnessScore, cancellationRisk };
   }, [participants, availabilities, getAvailabilityCount, getParticipantFatigue]);
 
+  const computeWhatIf = useCallback((dayIndex: number, hourIndex: number, addParticipantIndex: number): number => {
+    const total = participants.length;
+    if (total === 0) return 0;
+
+    // Pretend this participant is available
+    const hypotheticalAvailabilities = availabilities.map((grid, i) => {
+      if (i !== addParticipantIndex) return grid;
+      const next = grid.map(row => [...row]);
+      next[dayIndex][hourIndex] = true;
+      return next;
+    });
+
+    const availCount = hypotheticalAvailabilities.reduce((count, grid) => count + (grid[dayIndex]?.[hourIndex] ? 1 : 0), 0);
+    const groupSatisfaction = Math.round((availCount / total) * 100);
+
+    let totalFatigue = 0;
+    let availableCount = 0;
+    for (let i = 0; i < total; i++) {
+      if (!hypotheticalAvailabilities[i]?.[dayIndex]?.[hourIndex]) continue;
+      let consecutive = 0;
+      for (let h = hourIndex - 1; h >= 0; h--) {
+        if (hypotheticalAvailabilities[i][dayIndex]?.[h]) consecutive++; else break;
+      }
+      for (let h = hourIndex + 1; h < HOURS; h++) {
+        if (hypotheticalAvailabilities[i][dayIndex]?.[h]) consecutive++; else break;
+      }
+      totalFatigue += consecutive;
+      availableCount++;
+    }
+    const avgFatigue = availableCount > 0 ? totalFatigue / availableCount : 0;
+    const fatigueScore = Math.round(Math.min(100, (avgFatigue / 8) * 100));
+
+    const sacrifices: number[] = hypotheticalAvailabilities.map(grid => grid[dayIndex]?.[hourIndex] ? 0 : 100);
+    const avgSacrifice = sacrifices.reduce((a, b) => a + b, 0) / total;
+    const variance = sacrifices.reduce((sum, s) => sum + (s - avgSacrifice) ** 2, 0) / total;
+    const fairnessScore = Math.round(Math.max(0, 100 - Math.sqrt(variance) * 2.5));
+
+    const cancellationRisk = Math.round(Math.min(100, Math.max(0, (1 - availCount / total) * 60 + fatigueScore * 0.4)));
+
+    const hour = hourIndex + 8;
+    const timeBonus = (() => {
+      switch (preferences.idealTime) {
+        case 'morning': return hour >= 8 && hour <= 11 ? 10 : 0;
+        case 'afternoon': return hour >= 12 && hour <= 16 ? 10 : 0;
+        case 'evening': return hour >= 17 && hour <= 21 ? 10 : 0;
+      }
+    })();
+    const importanceWeight = preferences.importance === 'high' ? 1.5 : preferences.importance === 'low' ? 0.7 : 1.0;
+    const flexibilityPenalty = preferences.flexibility === 'high' ? 0.5 : preferences.flexibility === 'low' ? 1.5 : 1.0;
+
+    return Math.min(100, Math.round(
+      groupSatisfaction * 0.4 * importanceWeight +
+      (100 - fatigueScore) * 0.2 +
+      fairnessScore * 0.25 * flexibilityPenalty +
+      (100 - cancellationRisk) * 0.15 +
+      timeBonus
+    ));
+  }, [participants, availabilities, preferences]);
+
   const recommendations = useMemo((): Recommendation[] => {
     if (!meetingConfig || participants.length < 2) return [];
     const scored: Recommendation[] = [];
@@ -347,7 +408,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           time: formatHour(hour),
           dayIndex: day,
           timeIndex: hour,
-          score: Math.round(score),
+          score: Math.min(100, Math.round(score)),
           metrics,
         });
       }
@@ -379,6 +440,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     setSelectedRecommendation,
     getAvailabilityCount,
     getAvailableParticipants,
+    computeWhatIf,
     confirmedSlot,
     setConfirmedSlot,
     loading,

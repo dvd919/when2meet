@@ -96,11 +96,8 @@ export function WeeklyCalendar() {
       onMouseUp={() => setDragMode(null)}
       onMouseLeave={() => setDragMode(null)}
     >
-      <div className="border-b border-slate-200 px-6 py-4 bg-slate-50 flex items-center justify-between">
-        <div>
-          <h2 className="font-semibold text-slate-900">Weekly Availability Heatmap</h2>
-          <p className="text-sm text-slate-600 mt-1">Click or drag on slots to mark your availability</p>
-        </div>
+      <div className="border-b border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-900">Weekly Availability</h2>
         {hasGoogleClientId && (
           <button
             onClick={() => setShowImport(true)}
@@ -219,13 +216,11 @@ export function WeeklyCalendar() {
                   const confirmed = isConfirmed(dayIndex, hourIndex);
 
                   const availablePeople = getAvailableParticipants(dayIndex, hourIndex);
-                  const othersOnly = count > 0 && !userAvailable;
-                  const youOnly = count > 0 && userAvailable && count === 1;
 
                   return (
                     <div
                       key={key}
-                      className={`p-2 min-h-[60px] relative cursor-pointer transition-all group ${
+                      className={`p-1 min-h-[40px] relative cursor-pointer transition-all group ${
                         isHovered ? 'ring-2 ring-blue-500 ring-inset z-10' : ''
                       } ${confirmed ? 'ring-2 ring-green-500 ring-inset z-10' : ''
                       } ${userAvailable ? 'bg-blue-50' : 'bg-white'}`}
@@ -334,37 +329,29 @@ export function WeeklyCalendar() {
       </div>
 
       {/* Legend */}
-      <div className="border-t border-slate-200 px-6 py-4 bg-slate-50">
-        <div className="flex items-center gap-6 text-sm flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-50 rounded border border-blue-200" />
-            <span className="text-slate-600">You're available</span>
+      <div className="border-t border-slate-200 px-4 py-2 bg-slate-50">
+        <div className="flex items-center gap-4 text-xs flex-wrap text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 bg-blue-50 rounded border border-blue-200" />
+            <span>You</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
-            <span className="text-slate-600">You + others</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
+            <span>You + others</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gradient-to-br from-slate-400 to-slate-500 rounded" />
-            <span className="text-slate-600">Others only</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 bg-gradient-to-br from-slate-400 to-slate-500 rounded" />
+            <span>Others only</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-1">
-              {participants.slice(0, 3).map(p => (
-                <div key={p.name} className="w-3.5 h-3.5 rounded-full border border-white" style={{ backgroundColor: p.color }} />
-              ))}
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
+            <span>AI pick</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-2 h-2 text-white" />
             </div>
-            <span className="text-slate-600">Who's available</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">1</div>
-            <span className="text-slate-600">AI pick</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-              <AlertTriangle className="w-2.5 h-2.5 text-white" />
-            </div>
-            <span className="text-slate-600">Fatigue risk</span>
+            <span>Fatigue risk</span>
           </div>
         </div>
       </div>
