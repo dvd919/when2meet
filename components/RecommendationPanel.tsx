@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar, UserPlus, ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { useScheduling } from '../src/SchedulingContext';
 import { getAIInsight, getAIReasoning, chatWithAI, type ChatMessage } from '../src/openai';
+import { MetricInfo } from './MetricInfo';
 
 export function RecommendationPanel() {
   const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot, participants, getAvailableParticipants, computeWhatIf } = useScheduling();
@@ -99,6 +100,12 @@ export function RecommendationPanel() {
       icon: TrendingUp,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
+      info: {
+        title: 'Group Satisfaction',
+        description: 'Percent of participants who marked themselves available at this slot.',
+        formula: '(available / total) × 100',
+      },
+      align: 'left' as const,
     },
     {
       label: 'Fatigue Score',
@@ -107,6 +114,13 @@ export function RecommendationPanel() {
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       inverse: true,
+      info: {
+        title: 'Fatigue Score',
+        description: 'For participants available at this slot, the average length of their consecutive available block on this day. Long uninterrupted blocks suggest schedule strain.',
+        formula: 'avg(consecutive available hrs) ÷ 8 × 100',
+        note: 'Lower is better. Capped at 100.',
+      },
+      align: 'right' as const,
     },
     {
       label: 'Fairness Score',
@@ -114,6 +128,13 @@ export function RecommendationPanel() {
       icon: Scale,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
+      info: {
+        title: 'Fairness Score',
+        description: 'How evenly the "be available" burden is split. High when participants are uniform at this slot (all in or all out), low when the group is split.',
+        formula: '100 − stdDev(sacrifices) × 2.5',
+        note: 'Each unavailable person counts as a sacrifice of 100; available counts as 0.',
+      },
+      align: 'left' as const,
     },
     {
       label: 'Cancellation Risk',
@@ -122,6 +143,13 @@ export function RecommendationPanel() {
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
       inverse: true,
+      info: {
+        title: 'Cancellation Risk',
+        description: 'Estimated chance someone will not show. Driven mostly by who is unavailable, with a smaller boost from fatigue.',
+        formula: '(1 − available/total) × 60 + Fatigue × 0.4',
+        note: 'Lower is better.',
+      },
+      align: 'right' as const,
     },
   ];
 
@@ -183,7 +211,18 @@ export function RecommendationPanel() {
         </div>
         <div className="text-white">
           <div className="text-3xl font-semibold mb-1">{topRec.day} {topRec.time}</div>
-          <div className="text-blue-100 text-sm">Overall score: {topRec.score}/100</div>
+          <div className="text-blue-100 text-sm flex items-center gap-1.5">
+            <span>Overall score: {topRec.score}/100</span>
+            <span className="text-white/70 hover:text-white">
+              <MetricInfo
+                align="left"
+                title="Overall Score"
+                description="Weighted blend of the four metrics below, plus a small bonus when the time-of-day matches your ideal preference."
+                formula="0.4 × Satisfaction + 0.2 × (100 − Fatigue) + 0.25 × Fairness + 0.15 × (100 − Risk) + timeBonus"
+                note="Importance preference scales Satisfaction (0.7×–1.5×). Flexibility scales Fairness (0.5×–1.5×). Capped at 100."
+              />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -205,7 +244,16 @@ export function RecommendationPanel() {
                   style={{ width: `${metric.value}%` }}
                 />
               </div>
-              <div className="text-xs text-slate-600 font-medium">{metric.label}</div>
+              <div className="text-xs text-slate-600 font-medium flex items-center gap-1">
+                <span>{metric.label}</span>
+                <MetricInfo
+                  title={metric.info.title}
+                  description={metric.info.description}
+                  formula={metric.info.formula}
+                  note={metric.info.note}
+                  align={metric.align}
+                />
+              </div>
             </div>
           );
         })}
@@ -301,7 +349,15 @@ export function RecommendationPanel() {
               <div className="p-1.5 bg-white rounded-lg shadow-sm">
                 <UserPlus className="w-4 h-4 text-amber-600" />
               </div>
-              <div className="font-medium text-slate-900 text-sm">What-if Analysis</div>
+              <div className="font-medium text-slate-900 text-sm flex items-center gap-1.5">
+                <span>What-if Analysis</span>
+                <MetricInfo
+                  align="left"
+                  title="What-if Analysis"
+                  description="Pretends a currently unavailable participant joins this slot, recomputes the overall score, and shows the change."
+                  note="Only participants whose joining would increase the overall score are listed."
+                />
+              </div>
             </div>
             <div className="space-y-2">
               {unavailableParticipants.map(({ participant, whatIfScore, delta }) => (

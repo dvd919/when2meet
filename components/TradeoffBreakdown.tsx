@@ -1,4 +1,5 @@
 import { useScheduling } from '../src/SchedulingContext';
+import { MetricInfo } from './MetricInfo';
 
 export function TradeoffBreakdown() {
   const { participants, recommendations, selectedRecommendation, availabilities } = useScheduling();
@@ -61,6 +62,12 @@ export function TradeoffBreakdown() {
   const tradeoffs = [
     {
       label: 'Energy Level',
+      info: {
+        title: 'Energy Level',
+        description: 'Estimated focus/energy at this hour. Higher in the morning, dips after lunch and into the evening, with a small per-person offset.',
+        formula: 'baseByHour + perPersonOffset',
+        note: 'Heuristic estimate from time-of-day, not measured from real data.',
+      },
       participants: participants.map((p, i) => ({
         name: p.name,
         value: computeEnergyLevel(i),
@@ -69,6 +76,12 @@ export function TradeoffBreakdown() {
     },
     {
       label: 'Back-to-back Meetings',
+      info: {
+        title: 'Back-to-back Meetings',
+        description: 'Length of this participant\'s consecutive availability block that contains this slot, on this day. Long blocks suggest more potential for back-to-back load if this slot is chosen.',
+        formula: 'consecutive available hrs ÷ 8 × 100',
+        note: 'Higher = larger surrounding availability block.',
+      },
       participants: participants.map((p, i) => ({
         name: p.name,
         value: computeBackToBack(i),
@@ -78,6 +91,11 @@ export function TradeoffBreakdown() {
     },
     {
       label: 'Availability (Available)',
+      info: {
+        title: 'Availability (Available)',
+        description: 'Whether this participant marked themselves available at this exact slot.',
+        formula: 'available ? 100 : 0',
+      },
       participants: participants.map((p, i) => ({
         name: p.name,
         value: availabilities[i][dayIndex][timeIndex] ? 100 : 0,
@@ -86,6 +104,11 @@ export function TradeoffBreakdown() {
     },
     {
       label: 'Schedule Flexibility',
+      info: {
+        title: 'Schedule Flexibility',
+        description: 'How much overall availability this participant has across the entire week. More available hours = more scheduling flexibility.',
+        formula: 'total available hrs in week ÷ 50 × 100',
+      },
       participants: participants.map((p, i) => ({
         name: p.name,
         value: computeFairness(i),
@@ -103,7 +126,16 @@ export function TradeoffBreakdown() {
       <div className="p-4 space-y-4">
         {tradeoffs.map((tradeoff) => (
           <div key={tradeoff.label}>
-            <div className="text-sm font-medium text-slate-700 mb-3">{tradeoff.label}</div>
+            <div className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1.5">
+              <span>{tradeoff.label}</span>
+              <MetricInfo
+                align="left"
+                title={tradeoff.info.title}
+                description={tradeoff.info.description}
+                formula={tradeoff.info.formula}
+                note={tradeoff.info.note}
+              />
+            </div>
             <div className="space-y-2">
               {tradeoff.participants.map((participant) => (
                 <div key={participant.name} className="flex items-center gap-3">
