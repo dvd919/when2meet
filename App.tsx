@@ -11,11 +11,11 @@ import { ChatbotWidget } from './components/ChatbotWidget';
 import { SchedulingProvider, useScheduling } from './src/SchedulingContext';
 
 function BottomPanel() {
-  const [tab, setTab] = useState<'tradeoff' | 'preferences'>('tradeoff');
+  const [tab, setTab] = useState<'preferences' | 'tradeoff'>('preferences');
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200">
       <div className="flex border-b border-slate-200">
-        {(['tradeoff', 'preferences'] as const).map(t => (
+        {(['preferences', 'tradeoff'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -25,11 +25,11 @@ function BottomPanel() {
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {t === 'tradeoff' ? 'Tradeoff Breakdown' : 'Preferences'}
+            {t === 'preferences' ? 'Preferences' : 'Tradeoff Breakdown'}
           </button>
         ))}
       </div>
-      {tab === 'tradeoff' ? <TradeoffBreakdown /> : <PreferenceControls />}
+      {tab === 'preferences' ? <PreferenceControls /> : <TradeoffBreakdown />}
     </div>
   );
 }
