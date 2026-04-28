@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, Calendar as CalendarIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useScheduling } from '../src/SchedulingContext';
 import { getCurrentWeekMonday, getNextWeekMonday, formatWeekLabel } from '../src/googleCalendar';
 
@@ -11,7 +11,6 @@ export function WeeklyCalendar() {
     recommendations,
     toggleAvailability,
     setDragMode,
-    dragMode,
     handleDragOver,
     getAvailabilityCount,
     getAvailableParticipants,
@@ -31,6 +30,14 @@ export function WeeklyCalendar() {
   const [showImport, setShowImport] = useState(false);
   const [importWeek, setImportWeek] = useState<'this' | 'next'>('this');
   const [importError, setImportError] = useState('');
+
+  // Synchronous drag direction so onMouseEnter never reads a stale dragMode
+  // between onMouseDown's setState and React's next commit.
+  const dragModeRef = useRef<'add' | 'remove' | null>(null);
+  const endDrag = () => {
+    dragModeRef.current = null;
+    setDragMode(null);
+  };
 
   const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -93,8 +100,8 @@ export function WeeklyCalendar() {
   return (
     <div
       className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden select-none"
-      onMouseUp={() => setDragMode(null)}
-      onMouseLeave={() => setDragMode(null)}
+      onMouseUp={endDrag}
+      onMouseLeave={endDrag}
     >
       <div className="border-b border-slate-200 px-4 py-3 bg-slate-50 flex items-center justify-between">
         <h2 className="font-semibold text-slate-900">Weekly Availability</h2>
@@ -226,12 +233,14 @@ export function WeeklyCalendar() {
                       } ${userAvailable ? 'bg-blue-50' : 'bg-white'}`}
                       onMouseEnter={() => {
                         setHoveredCell(key);
-                        if (dragMode !== null) handleDragOver(dayIndex, hourIndex);
+                        const mode = dragModeRef.current;
+                        if (mode !== null) handleDragOver(dayIndex, hourIndex, mode);
                       }}
                       onMouseLeave={() => setHoveredCell(null)}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         const newMode = userAvailable ? 'remove' : 'add';
+                        dragModeRef.current = newMode;
                         setDragMode(newMode);
                         toggleAvailability(dayIndex, hourIndex);
                       }}
