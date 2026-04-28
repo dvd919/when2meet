@@ -42,6 +42,7 @@ interface SchedulingContextType {
   addParticipant: (name: string) => Promise<void>;
   removeParticipant: (name: string) => Promise<void>;
   availabilities: AvailabilityGrid[];
+  currentUserAvailability: AvailabilityGrid;
   toggleAvailability: (dayIndex: number, hourIndex: number) => void;
   setDragMode: (mode: 'add' | 'remove' | null) => void;
   dragMode: 'add' | 'remove' | null;
@@ -429,6 +430,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     addParticipant,
     removeParticipant,
     availabilities,
+    currentUserAvailability: localAvailability,
     preferences,
     recommendations,
     selectedRecommendation,

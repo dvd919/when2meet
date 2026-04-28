@@ -15,6 +15,7 @@ export function WeeklyCalendar() {
     getAvailabilityCount,
     getAvailableParticipants,
     availabilities,
+    currentUserAvailability,
     confirmedSlot,
     meetingConfig,
     importFromGoogle,
@@ -219,7 +220,7 @@ export function WeeklyCalendar() {
                   const rank = getRankForCell(dayIndex, hourIndex);
                   const key = `${dayIndex}-${hourIndex}`;
                   const isHovered = hoveredCell === key;
-                  const userAvailable = availabilities[0]?.[dayIndex]?.[hourIndex];
+                  const userAvailable = currentUserAvailability[dayIndex]?.[hourIndex];
                   const confirmed = isConfirmed(dayIndex, hourIndex);
 
                   const availablePeople = getAvailableParticipants(dayIndex, hourIndex);
