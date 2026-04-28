@@ -1,20 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar, UserPlus, ChevronDown, ChevronUp, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Trophy, TrendingUp, Battery, Scale, AlertCircle, Sparkles, Calendar, UserPlus } from 'lucide-react';
 import { useScheduling } from '../src/SchedulingContext';
-import { getAIInsight, getAIReasoning, chatWithAI, type ChatMessage } from '../src/openai';
+import { getAIInsight } from '../src/openai';
 import { MetricInfo } from './MetricInfo';
 
 export function RecommendationPanel() {
   const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot, participants, getAvailableParticipants, computeWhatIf } = useScheduling();
   const [aiInsight, setAiInsight] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [reasoning, setReasoning] = useState('');
-  const [reasoningLoading, setReasoningLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [userInput, setUserInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const topRec = recommendations[selectedRecommendation] ?? recommendations[0];
 
@@ -24,51 +17,11 @@ export function RecommendationPanel() {
     const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
     setAiInsight('');
     setAiLoading(true);
-    setExpanded(false);
-    setReasoning('');
-    setChatHistory([]);
     getAIInsight(topRec, participants.length, available, unavailable)
       .then(setAiInsight)
       .catch(() => setAiInsight(''))
       .finally(() => setAiLoading(false));
   }, [topRec?.dayIndex, topRec?.timeIndex, topRec?.score]);
-
-  const handleExpand = () => {
-    const next = !expanded;
-    setExpanded(next);
-    if (next && !reasoning && !reasoningLoading && topRec) {
-      const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
-      const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
-      setReasoningLoading(true);
-      getAIReasoning(topRec, participants.length, available, unavailable)
-        .then(r => {
-          setReasoning(r);
-          setChatHistory([{ role: 'assistant', content: r }]);
-        })
-        .catch(() => setReasoning(''))
-        .finally(() => setReasoningLoading(false));
-    }
-  };
-
-  const handleSend = async () => {
-    if (!userInput.trim() || chatLoading || !topRec) return;
-    const message = userInput.trim();
-    setUserInput('');
-    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
-    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
-    const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: message }];
-    setChatHistory(newHistory);
-    setChatLoading(true);
-    try {
-      const reply = await chatWithAI(topRec, participants.length, available, unavailable, chatHistory, message);
-      setChatHistory([...newHistory, { role: 'assistant', content: reply }]);
-    } catch {
-      setChatHistory([...newHistory, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
-    } finally {
-      setChatLoading(false);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-    }
-  };
 
   if (recommendations.length === 0) {
     return (
@@ -261,9 +214,8 @@ export function RecommendationPanel() {
 
       {/* Explanation */}
       <div className="px-6 pb-6">
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-100 overflow-hidden">
-          {/* Header row */}
-          <div className="flex items-start gap-3 p-4">
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border border-blue-100 p-4">
+          <div className="flex items-start gap-3">
             <div className="p-1.5 bg-white rounded-lg shadow-sm flex-shrink-0">
               <Sparkles className="w-4 h-4 text-blue-600" />
             </div>
@@ -272,72 +224,11 @@ export function RecommendationPanel() {
               <p className="text-sm text-slate-700 leading-relaxed">
                 {aiLoading ? 'Analyzing...' : aiInsight || getInsight()}
               </p>
+              <p className="text-xs text-blue-600 mt-2">
+                Have a question? Tap <span className="font-semibold">Ask AI</span> in the bottom-right.
+              </p>
             </div>
-            <button
-              onClick={handleExpand}
-              className="flex-shrink-0 p-1 rounded-md hover:bg-blue-100 transition-colors"
-              title={expanded ? 'Hide reasoning' : 'Show reasoning'}
-            >
-              {expanded ? <ChevronUp className="w-4 h-4 text-blue-500" /> : <ChevronDown className="w-4 h-4 text-blue-500" />}
-            </button>
           </div>
-
-          {/* Expanded: reasoning + chat */}
-          {expanded && (
-            <div className="border-t border-blue-100">
-              {/* Reasoning */}
-              <div className="p-4 bg-white/60">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Detailed Reasoning</div>
-                {reasoningLoading ? (
-                  <p className="text-sm text-slate-400 italic">Thinking...</p>
-                ) : (
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{reasoning}</p>
-                )}
-              </div>
-
-              {/* Chat history (beyond initial reasoning) */}
-              {chatHistory.length > 1 && (
-                <div className="px-4 pb-2 space-y-2 max-h-48 overflow-y-auto">
-                  {chatHistory.slice(1).map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
-                        msg.role === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white border border-slate-200 text-slate-700'
-                      }`}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))}
-                  {chatLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-400 italic">Thinking...</div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-              )}
-
-              {/* Input */}
-              <div className="p-3 bg-white/60 border-t border-blue-100 flex gap-2">
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={e => setUserInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSend()}
-                  placeholder="Ask a follow-up question..."
-                  className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!userInput.trim() || chatLoading}
-                  className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

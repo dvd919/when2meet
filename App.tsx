@@ -7,6 +7,7 @@ import { Header } from './components/Header';
 import { CreateMeeting } from './components/CreateMeeting';
 import { InvitePage } from './components/InvitePage';
 import { JoinMeeting } from './components/JoinMeeting';
+import { ChatbotWidget } from './components/ChatbotWidget';
 import { SchedulingProvider, useScheduling } from './src/SchedulingContext';
 
 function BottomPanel() {
@@ -55,6 +56,7 @@ function AppContent() {
           </div>
         </div>
       </main>
+      <ChatbotWidget />
     </div>
   );
 }
