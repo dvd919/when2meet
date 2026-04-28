@@ -4,7 +4,14 @@ import { useScheduling } from '../src/SchedulingContext';
 import { getAIReasoning, chatWithAI, type ChatMessage } from '../src/openai';
 
 export function ChatbotWidget() {
-  const { recommendations, selectedRecommendation, participants, getAvailableParticipants } = useScheduling();
+  const {
+    recommendations,
+    selectedRecommendation,
+    participants,
+    availabilities,
+    preferences,
+    meetingConfig,
+  } = useScheduling();
   const [open, setOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [userInput, setUserInput] = useState('');
@@ -14,6 +21,18 @@ export function ChatbotWidget() {
 
   const topRec = recommendations[selectedRecommendation] ?? recommendations[0];
 
+  const buildCtx = () => {
+    if (!topRec || !meetingConfig) return null;
+    return {
+      meetingConfig,
+      participants,
+      availabilities,
+      preferences,
+      recommendations,
+      activeRec: topRec,
+    };
+  };
+
   // Reset chat when the recommendation changes
   useEffect(() => {
     setChatHistory([]);
@@ -22,14 +41,18 @@ export function ChatbotWidget() {
   // Lazy-load reasoning the first time the panel opens for a given rec
   useEffect(() => {
     if (!open || !topRec || chatHistory.length > 0 || reasoningLoading) return;
-    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
-    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
+    const ctx = buildCtx();
+    if (!ctx) return;
     setReasoningLoading(true);
-    getAIReasoning(topRec, participants.length, available, unavailable)
-      .then(r => setChatHistory([{ role: 'assistant', content: r }]))
-      .catch(() => setChatHistory([{ role: 'assistant', content: 'Sorry, the AI assistant is unavailable right now.' }]))
+    getAIReasoning(ctx)
+      .then((r) => setChatHistory([{ role: 'assistant', content: r }]))
+      .catch(() =>
+        setChatHistory([
+          { role: 'assistant', content: 'Sorry, the AI assistant is unavailable right now.' },
+        ]),
+      )
       .finally(() => setReasoningLoading(false));
-  }, [open, topRec, participants, getAvailableParticipants, chatHistory.length, reasoningLoading]);
+  }, [open, topRec, chatHistory.length, reasoningLoading]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -40,15 +63,15 @@ export function ChatbotWidget() {
 
   const handleSend = async () => {
     if (!userInput.trim() || chatLoading || !topRec) return;
+    const ctx = buildCtx();
+    if (!ctx) return;
     const message = userInput.trim();
     setUserInput('');
-    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
-    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
     const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: message }];
     setChatHistory(newHistory);
     setChatLoading(true);
     try {
-      const reply = await chatWithAI(topRec, participants.length, available, unavailable, chatHistory, message);
+      const reply = await chatWithAI(ctx, chatHistory, message);
       setChatHistory([...newHistory, { role: 'assistant', content: reply }]);
     } catch {
       setChatHistory([...newHistory, { role: 'assistant', content: 'Sorry, something went wrong.' }]);

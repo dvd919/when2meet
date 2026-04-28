@@ -5,19 +5,36 @@ import { getAIInsight } from '../src/openai';
 import { MetricInfo } from './MetricInfo';
 
 export function RecommendationPanel() {
-  const { recommendations, selectedRecommendation, setSelectedRecommendation, confirmedSlot, setConfirmedSlot, participants, getAvailableParticipants, computeWhatIf } = useScheduling();
+  const {
+    recommendations,
+    selectedRecommendation,
+    setSelectedRecommendation,
+    confirmedSlot,
+    setConfirmedSlot,
+    participants,
+    availabilities,
+    preferences,
+    meetingConfig,
+    getAvailableParticipants,
+    computeWhatIf,
+  } = useScheduling();
   const [aiInsight, setAiInsight] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
   const topRec = recommendations[selectedRecommendation] ?? recommendations[0];
 
   useEffect(() => {
-    if (!topRec) return;
-    const available = getAvailableParticipants(topRec.dayIndex, topRec.timeIndex);
-    const unavailable = participants.filter(p => !available.find(a => a.name === p.name));
+    if (!topRec || !meetingConfig) return;
     setAiInsight('');
     setAiLoading(true);
-    getAIInsight(topRec, participants.length, available, unavailable)
+    getAIInsight({
+      meetingConfig,
+      participants,
+      availabilities,
+      preferences,
+      recommendations,
+      activeRec: topRec,
+    })
       .then(setAiInsight)
       .catch(() => setAiInsight(''))
       .finally(() => setAiLoading(false));
