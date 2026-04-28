@@ -9,11 +9,21 @@ export function Header() {
       <div className="max-w-[1600px] mx-auto px-6 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Leave this meeting and return to the homepage?')) {
+                  window.location.href = '/';
+                }
+              }}
+              className="flex items-center gap-3 rounded-xl hover:bg-slate-50 transition-colors p-1 -m-1"
+              title="Back to homepage"
+              aria-label="Back to homepage"
+            >
               <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <div>
+              <div className="text-left">
                 <h1 className="font-semibold text-slate-900">
                   {meetingConfig?.name ?? 'AI When2Meet'}
                 </h1>
@@ -21,7 +31,7 @@ export function Header() {
                   {meetingConfig?.description || 'Smart group scheduling'}
                 </p>
               </div>
-            </div>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
