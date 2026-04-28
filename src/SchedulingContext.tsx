@@ -87,6 +87,11 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   // Local user availability for optimistic updates
   const [localAvailability, setLocalAvailability] = useState<AvailabilityGrid>(() => createEmptyGrid());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sync the current user's grid from Firestore only on initial subscribe.
+  // After that, the local optimistic state is the source of truth; further
+  // server pushes (including the echo of our own flush) must not overwrite
+  // an in-progress drag.
+  const didInitialUserSyncRef = useRef(false);
 
   const setPhase = useCallback((p: AppPhase) => {
     setPhaseRaw(p);
@@ -100,6 +105,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!meetingConfig) return;
     const code = meetingConfig.inviteCode;
+    didInitialUserSyncRef.current = false;
 
     const unsubMeeting = fs.onMeetingChange(code, (meeting) => {
       if (meeting) {
@@ -109,10 +115,15 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
     const unsubParts = fs.onParticipantsChange(code, (parts) => {
       setFirestoreParticipants(parts);
-      // Sync local availability from server for current user
-      const me = parts.find(p => p.name === currentUserName);
-      if (me) {
-        setLocalAvailability(me.availability);
+      // Only seed the current user's grid from the server once on subscribe.
+      // After that, local is authoritative (otherwise the echo of our own
+      // debounced flush can clobber an in-progress drag).
+      if (!didInitialUserSyncRef.current) {
+        const me = parts.find(p => p.name === currentUserName);
+        if (me) {
+          setLocalAvailability(me.availability);
+          didInitialUserSyncRef.current = true;
+        }
       }
     });
 
